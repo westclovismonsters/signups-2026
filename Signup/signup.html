@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monsters 2026 Sign-Ups</title>
+<title>West Clovis Monsters — Sign-Up (Full Sample)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -550,6 +550,7 @@ const SNACK_LEVEL_ORDER = ['Peewee Football','Peewee Cheer','Junior Football','J
 
 let GAMES = [];
 let SLOTS = [];
+let DESCRIPTIONS = {};
 let selectedVolunteerGameId = null;
 let selectedSnackGameId = null;
 let isAdmin = false;
@@ -557,9 +558,10 @@ let adminPasscode = '';
 
 /* ---------- LOAD DATA ---------- */
 async function loadData(){
-  const [{ data: games, error: gErr }, { data: slots, error: sErr }] = await Promise.all([
+  const [{ data: games, error: gErr }, { data: slots, error: sErr }, { data: descs, error: dErr }] = await Promise.all([
     sb.from('games').select('*').order('sort_order'),
-    sb.from('slots').select('*')
+    sb.from('slots').select('*'),
+    sb.from('job_descriptions').select('*')
   ]);
   if(gErr || sErr){
     document.getElementById('volunteer-content').innerHTML = '<p style="color:#C0392B;">Could not load data. Please refresh.</p>';
@@ -568,6 +570,10 @@ async function loadData(){
   }
   GAMES = games;
   SLOTS = slots;
+  DESCRIPTIONS = {};
+  if(!dErr && descs){
+    descs.forEach(d => { DESCRIPTIONS[d.job_name] = d.description; });
+  }
 
   const volunteerGames = GAMES.filter(g => SLOTS.some(s => s.game_id === g.id && s.category === 'volunteer'));
   const snackGames = GAMES.filter(g => SLOTS.some(s => s.game_id === g.id && s.category === 'snack'));
@@ -634,6 +640,13 @@ function renderVolunteerPanel(){
     head.className = 'job-group-head';
     head.innerHTML = '<h2>' + jobName + '</h2><span class="total">' + (total - openCount) + '/' + total + ' filled</span>';
     group.appendChild(head);
+
+    if(DESCRIPTIONS[jobName]){
+      const desc = document.createElement('p');
+      desc.className = 'job-desc';
+      desc.textContent = DESCRIPTIONS[jobName];
+      group.appendChild(desc);
+    }
 
     const tiers = [...new Set(jobSlots.map(s => s.tier))].sort((a,b) => TIER_ORDER.indexOf(a) - TIER_ORDER.indexOf(b));
     tiers.forEach(tier => {
