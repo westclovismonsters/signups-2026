@@ -160,6 +160,12 @@
     border-color:var(--maroon);
     color:#fff;
   }
+  .date-chip.disabled{
+    background:#F1EEE7;
+    border-color:#E4DFD4;
+    color:#B5AC9C;
+    cursor:not-allowed;
+  }
   .viewing{
     font-size:12.5px;
     color:var(--muted);
@@ -547,6 +553,11 @@ const JOB_ORDER = ['Water','Chain Gang','DJ','Scoreboard','Gate','Snack Bar Setu
                     'Gate (10am-12pm)','Field Runner (12-1pm)','Field Cleanup (12:45-2pm)'];
 const TIER_ORDER = ['Peewee','Junior','Senior','All'];
 const SNACK_LEVEL_ORDER = ['Peewee Football','Peewee Cheer','Junior Football','Junior Cheer','Senior Football','Senior Cheer'];
+const ROSTER_COUNTS = {
+  'Peewee Cheer': 6, 'Peewee Football': 25,
+  'Junior Cheer': 13, 'Junior Football': 34,
+  'Senior Cheer': 14, 'Senior Football': 34
+};
 
 let GAMES = [];
 let SLOTS = [];
@@ -578,14 +589,27 @@ async function loadData(){
   const volunteerGames = GAMES.filter(g => SLOTS.some(s => s.game_id === g.id && s.category === 'volunteer'));
   const snackGames = GAMES.filter(g => SLOTS.some(s => s.game_id === g.id && s.category === 'snack'));
 
-  selectedVolunteerGameId = volunteerGames.length ? volunteerGames[0].id : null;
-  selectedSnackGameId = snackGames.length ? snackGames[0].id : null;
+  selectedVolunteerGameId = firstUpcoming(volunteerGames);
+  selectedSnackGameId = firstUpcoming(snackGames);
 
   renderDateStrip('volunteer-date-strip', volunteerGames, selectedVolunteerGameId);
   renderVolunteerPanel();
 
   renderDateStrip('snacks-date-strip', snackGames, selectedSnackGameId);
   renderSnacksPanel();
+}
+
+function isPastDate(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  return d < today;
+}
+
+function firstUpcoming(games){
+  if(!games.length) return null;
+  const upcoming = games.find(g => !isPastDate(g.event_date));
+  return upcoming ? upcoming.id : games[0].id;
 }
 
 function shortDate(dateStr){
@@ -597,20 +621,23 @@ function renderDateStrip(containerId, games, selectedId){
   const el = document.getElementById(containerId);
   el.innerHTML = '';
   games.forEach(g => {
+    const past = isPastDate(g.event_date);
     const chip = document.createElement('div');
-    chip.className = 'date-chip' + (g.id === selectedId ? ' selected' : '');
-    chip.textContent = shortDate(g.event_date);
-    chip.onclick = () => {
-      if(containerId === 'volunteer-date-strip'){
-        selectedVolunteerGameId = g.id;
-        renderDateStrip('volunteer-date-strip', games, g.id);
-        renderVolunteerPanel();
-      } else {
-        selectedSnackGameId = g.id;
-        renderDateStrip('snacks-date-strip', games, g.id);
-        renderSnacksPanel();
-      }
-    };
+    chip.className = 'date-chip' + (g.id === selectedId ? ' selected' : '') + (past ? ' disabled' : '');
+    chip.textContent = shortDate(g.event_date) + (past ? ' (Closed)' : '');
+    if(!past){
+      chip.onclick = () => {
+        if(containerId === 'volunteer-date-strip'){
+          selectedVolunteerGameId = g.id;
+          renderDateStrip('volunteer-date-strip', games, g.id);
+          renderVolunteerPanel();
+        } else {
+          selectedSnackGameId = g.id;
+          renderDateStrip('snacks-date-strip', games, g.id);
+          renderSnacksPanel();
+        }
+      };
+    }
     el.appendChild(chip);
   });
 }
@@ -692,7 +719,7 @@ function renderSnacksPanel(){
     }
     const sub = document.createElement('div');
     sub.style.padding = '2px 18px 6px';
-    sub.innerHTML = '<div style="font-size:12px;font-weight:600;color:#4A3F33;padding:6px 0 2px;">' + level + '</div>';
+    sub.innerHTML = '<div style="font-size:12px;font-weight:600;color:#4A3F33;padding:6px 0 2px;">' + level + ' <span style="font-weight:400;color:#8A7F6E;">&middot; ' + (ROSTER_COUNTS[level] || '?') + ' kids</span></div>';
     card.appendChild(sub);
     ['Food','Drink'].forEach(kind => {
       const slot = levelSlots.find(s => s.job_name === kind);
