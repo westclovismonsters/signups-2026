@@ -549,7 +549,7 @@ const SUPABASE_URL = 'https://dvfogbfikzkcpunooulg.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2Zm9nYmZpa3prY3B1bm9vdWxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5MDM1ODcsImV4cCI6MjEwMjQ3OTU4N30.siMCdgBmGhhUWai0nUHMXTz5VaxfhPYt8NVK7inNXD0';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const JOB_ORDER = ['Water','Chain Gang','DJ','Scoreboard','Gate','Snack Bar Setup','Snack Bar','Field Cleanup',
+const JOB_ORDER = ['Water','Chain Gang','DJ','Scoreboard','Gate (Early)','Gate','Snack Bar Setup','Snack Bar','Field Cleanup',
                     'Gate (10am-12pm)','Field Runner (12-1pm)','Field Cleanup (12:45-2pm)'];
 const TIER_ORDER = ['Peewee','Junior','Senior','All'];
 const SNACK_LEVEL_ORDER = ['Peewee Football','Peewee Cheer','Junior Football','Junior Cheer','Senior Football','Senior Cheer'];
@@ -562,17 +562,23 @@ const ROSTER_COUNTS = {
 let GAMES = [];
 let SLOTS = [];
 let DESCRIPTIONS = {};
+let TIMES = {};
 let selectedVolunteerGameId = null;
 let selectedSnackGameId = null;
 let isAdmin = false;
 let adminPasscode = '';
 
+function timeKey(gameId, jobName, tier){
+  return gameId + '||' + jobName + '||' + tier;
+}
+
 /* ---------- LOAD DATA ---------- */
 async function loadData(){
-  const [{ data: games, error: gErr }, { data: slots, error: sErr }, { data: descs, error: dErr }] = await Promise.all([
+  const [{ data: games, error: gErr }, { data: slots, error: sErr }, { data: descs, error: dErr }, { data: times, error: tErr }] = await Promise.all([
     sb.from('games').select('*').order('sort_order'),
     sb.from('slots').select('*'),
-    sb.from('job_descriptions').select('*')
+    sb.from('job_descriptions').select('*'),
+    sb.from('job_times').select('*')
   ]);
   if(gErr || sErr){
     document.getElementById('volunteer-content').innerHTML = '<p style="color:#C0392B;">Could not load data. Please refresh.</p>';
@@ -584,6 +590,10 @@ async function loadData(){
   DESCRIPTIONS = {};
   if(!dErr && descs){
     descs.forEach(d => { DESCRIPTIONS[d.job_name] = d.description; });
+  }
+  TIMES = {};
+  if(!tErr && times){
+    times.forEach(t => { TIMES[timeKey(t.game_id, t.job_name, t.tier)] = t; });
   }
 
   const volunteerGames = GAMES.filter(g => SLOTS.some(s => s.game_id === g.id && s.category === 'volunteer'));
@@ -732,6 +742,15 @@ function renderSnacksPanel(){
 }
 
 /* ---------- SHARED: ONE SLOT ROW ---------- */
+function getTimeText(slot){
+  const t = TIMES[timeKey(slot.game_id, slot.job_name, slot.tier)];
+  if(t) return t.arrival_time + ' \u2013 ' + t.departure_time;
+  // Fallback for jobs that don't have a job_times entry yet (e.g. Carnival
+  // jobs, whose time hint is baked into the job_name itself).
+  const m = slot.job_name.match(/\(([^)]+)\)/);
+  return m ? m[1] : '';
+}
+
 function buildSlotRow(slot, tierLabel, snackKind){
   const row = document.createElement('div');
   row.className = 'tier-row';
@@ -751,7 +770,7 @@ function buildSlotRow(slot, tierLabel, snackKind){
 
   const timeEl = document.createElement('span');
   timeEl.className = 'tier-time';
-  timeEl.textContent = snackKind ? '' : (slot.job_name.match(/\(([^)]+)\)/) || [null,''])[1];
+  timeEl.textContent = snackKind ? '' : getTimeText(slot);
   row.appendChild(timeEl);
 
   const spotsEl = document.createElement('span');
